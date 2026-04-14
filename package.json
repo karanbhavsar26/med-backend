@@ -1,13 +1,12 @@
 {
-    "name": "medical-report-ocr",
-    "version": "1.0.0",
-    "main": "dist/index.js",
-    "scripts": {
-        "dev": "ts-node src/index.ts",
-        "build": "tsc",
-        "start": "node dist/index.js",
-        "test": "jest"
-    },
+        "name": "medical-report-ocr",
+        "version": "1.0.0",
+        "scripts": {
+          "build": "tsc",
+          "start": "node dist/index.js",
+          "dev": "ts-node src/index.ts",
+          "postinstall": "npm run build"
+        },
     "dependencies": {
         "axios": "^1.7.0",
         "cors": "^2.8.6",
