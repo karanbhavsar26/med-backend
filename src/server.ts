@@ -6,6 +6,7 @@ import { authMiddleware } from './middleware/auth';
 import { extractWithMarker } from './services/ocrService';
 import { parseLabReportMarkdown } from './utils/parsers';
 import { mapToFHIR } from './services/fhirMapper';
+import { Request, Response } from "express";
 
 const app = express();
 
@@ -29,7 +30,7 @@ const upload = multer({
 });
 
 // ====================== MAIN ENDPOINT ======================
-app.post('/extract', upload.single('file'), async (req, res) => {
+app.post('/extract', upload.single('file'), async  (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
