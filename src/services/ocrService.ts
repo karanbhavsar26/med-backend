@@ -39,7 +39,7 @@ export const extractWithMarker = async (fileBuffer: Buffer, filename: string): P
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
     });
-
+console.log("submitResponse.data",submitResponse.data)
     const { request_id, request_check_url } = submitResponse.data;
 
     if (!request_check_url && !request_id) {

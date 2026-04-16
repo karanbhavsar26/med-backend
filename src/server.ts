@@ -4,15 +4,15 @@ import multer from 'multer';
 import cors from 'cors';
 import { authMiddleware } from './middleware/auth';
 import { extractWithMarker } from './services/ocrService';
-import { parseLabReportMarkdown } from './utils/parsers';
+import { processMarkerOutput } from './utils/parsers';
 import { mapToFHIR } from './services/fhirMapper';
 import { Request, Response } from "express";
 
 const app = express();
 
-// ====================== CORS (Must be first) ======================
+// ====================== CORS ======================
 app.use(cors({
-  origin: true,                    // Allow all origins in development
+  origin: true,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -23,51 +23,57 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Multer for file upload
+// Multer for file upload (PDF/Image)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
 });
 
 // ====================== MAIN ENDPOINT ======================
-app.post('/extract', upload.single('file'), async  (req: Request, res: Response) => {
+// src/server.ts  (only changed parts shown)
+app.post('/extract', upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log(`📤 Received file: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`📤 Processing: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-    // Step 1: Extract text using Datalab Marker
-    const markdown = await extractWithMarker(req.file.buffer, req.file.originalname);
+    // Step 1: Call Datalab Marker
+    const markerData: any = await extractWithMarker(req.file.buffer, req.file.originalname);
+    console.log(`📊 Marker returned data with keys:`, Object.keys(markerData || {}));
 
-    // Step 2: Parse into observations
-    const rawObservations = parseLabReportMarkdown(markdown);
+    // Step 2: Parse with AI (no more strict panel names)
+    const rawObservations = await processMarkerOutput(markerData);
 
     if (rawObservations.length === 0) {
-      return res.status(422).json({ error: 'No medical observations could be extracted' });
+      return res.status(422).json({ 
+        error: 'No observations extracted',
+        message: 'Could not find any lab tests in the report'
+      });
     }
 
-    // Step 3: Convert to FHIR R4 Bundle
+    // Step 3: Convert to FHIR R4
     const fhirBundle = mapToFHIR(rawObservations);
 
-    console.log(`✅ Successfully extracted ${rawObservations.length} observations`);
+    console.log(`✅ Success: ${rawObservations.length} observations → FHIR Bundle ready`);
 
     res.json(fhirBundle);
 
   } catch (error: any) {
-    console.error('❌ Error in /extract:', error);
+    console.error('❌ /extract error:', error.message);
     res.status(500).json({ 
-      error: error.message || 'Internal server error during OCR processing' 
+      error: 'Processing failed',
+      message: error.message 
     });
   }
 });
-
-// Health check endpoint (bonus)
+// ====================== HEALTH CHECK ======================
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'Medical Report OCR Service is running',
+    aiRefinerEnabled: process.env.USE_AI_REFINER === 'true',
     timestamp: new Date().toISOString()
   });
 });
